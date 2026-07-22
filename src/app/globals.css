@@ -1,0 +1,68 @@
+@import "tailwindcss";
+
+/* ArchiTech Design System — tokens extracted from Figma
+   Primary: #0C1218 (dark), #DBF242 / #C7E402 (brand lime), #38368A / #4D54F5 / #ABC2FF (indigo scale)
+   Neutrals: #FFFFFF, #F8F6F6 (bg/border), #192128 (overlay)
+   Feedback: #FF0000 (alert), #00FF15 (success) */
+
+:root {
+  --at-ink: #0c1218;
+  --at-lime: #c7e402;
+  --at-lime-soft: #dbf242;
+  --at-indigo-deep: #38368a;
+  --at-indigo: #4d54f5;
+  --at-indigo-soft: #abc2ff;
+  --at-white: #ffffff;
+  --at-surface: #f8f6f6;
+  --at-border: #e6e3e3;
+  --at-overlay: #192128;
+  --at-alert: #ff0000;
+  --at-success: #00c853;
+
+  --background: var(--at-surface);
+  --foreground: var(--at-ink);
+  --card: var(--at-white);
+  --muted: #6b7280;
+  --accent: var(--at-indigo);
+  --radius: 14px;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-muted: var(--muted);
+  --color-ink: var(--at-ink);
+  --color-lime: var(--at-lime);
+  --color-lime-soft: var(--at-lime-soft);
+  --color-indigo-deep: var(--at-indigo-deep);
+  --color-indigo: var(--at-indigo);
+  --color-indigo-soft: var(--at-indigo-soft);
+  --color-surface: var(--at-surface);
+  --color-border: var(--at-border);
+  --color-alert: var(--at-alert);
+  --color-success: var(--at-success);
+  --font-sans: var(--font-inter), "Segoe UI", system-ui, sans-serif;
+  --radius-card: var(--radius);
+}
+
+:root[data-theme="dark"],
+.dark {
+  --background: var(--at-ink);
+  --foreground: #f2f4f7;
+  --card: #141b22;
+  --muted: #9aa4b2;
+  --border: #232c36;
+  --at-border: #232c36;
+}
+
+* {
+  border-color: var(--at-border);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}

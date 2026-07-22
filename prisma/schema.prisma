@@ -1,0 +1,331 @@
+// Digital Proposal Management System — data model
+// Fully independent Postgres DB (CRM data migrated out of monday.com).
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------- Migrated CRM entities ----------
+
+model Company {
+  id             String   @id @default(cuid())
+  mondayId       String?  @unique // original monday item id, for traceability
+  name           String
+  registrationNo String? // ח.פ
+  isCustomer     Boolean  @default(false)
+  paymentTerms   String?
+  billingEmail   String?
+  website        String?
+  info           String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  opportunities Opportunity[]
+  contacts      Contact[]
+  proposals     Proposal[]
+}
+
+model Contact {
+  id        String   @id @default(cuid())
+  mondayId  String?  @unique
+  firstName String?
+  lastName  String?
+  fullName  String
+  email     String?
+  phone     String?
+  companyId String?
+  company   Company? @relation(fields: [companyId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  opportunities OpportunityContact[]
+  proposalLinks ProposalContact[]
+}
+
+enum OpportunityStage {
+  NEW // הזדמנות חדשה
+  REQUIREMENTS // אפיון דרישה
+  QUOTE_SENT // נשלחה הצעת מחיר
+  FOLLOW_UP // פולאפ על הצעה
+  CLOSED_WON // עסקה נסגרה
+  CLOSED_LOST // עסקה נפלה
+}
+
+model Opportunity {
+  id                String           @id @default(cuid())
+  mondayId          String?          @unique
+  name              String
+  corporateName     String? // שם תאגיד רשמי
+  registrationNo    String? // ח.פ
+  stage             OpportunityStage @default(NEW)
+  requestedService  String? // שירות מבוקש
+  value             Decimal?         @db.Decimal(14, 2)
+  currency          String           @default("USD")
+  expectedCloseDate DateTime?
+  website           String?
+  aiSummary         String?
+  source            String? // מקור הגעה
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  companyId String?
+  company   Company?             @relation(fields: [companyId], references: [id])
+  contacts  OpportunityContact[]
+  proposals Proposal[]
+}
+
+model OpportunityContact {
+  opportunityId String
+  contactId     String
+  opportunity   Opportunity @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  contact       Contact     @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@id([opportunityId, contactId])
+}
+
+// ---------- Proposal system ----------
+
+enum ProposalStatus {
+  DRAFT
+  PENDING_APPROVAL
+  PENDING_CORRECTIONS
+  APPROVED_FOR_SENDING
+  SENT
+  OPENED
+  SIGNED
+  REJECTED
+  EXPIRED
+}
+
+enum ApprovalStatus {
+  NA
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum SignatureStatus {
+  UNSIGNED
+  PARTIALLY_SIGNED
+  SIGNED
+}
+
+enum ViewingStatus {
+  NOT_VIEWED
+  VIEWED
+  VIEWED_MULTIPLE
+}
+
+enum BillingCycle {
+  ONE_TIME
+  MONTHLY
+  ANNUAL
+}
+
+model Template {
+  id          String   @id @default(cuid())
+  name        String
+  category    String? // service type
+  language    String   @default("he")
+  brand       String?
+  isDefault   Boolean  @default(false)
+  version     String   @default("V1")
+  status      String   @default("ACTIVE") // ACTIVE / DRAFT / ARCHIVED
+  contentJson Json? // block-based template content
+  termsText   String?
+  logoUrl     String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  proposals Proposal[]
+}
+
+model Proposal {
+  id              String          @id @default(cuid())
+  proposalNumber  String          @unique // permanent business identifier (reused from quote number)
+  title           String
+  status          ProposalStatus  @default(DRAFT)
+  approvalStatus  ApprovalStatus  @default(NA)
+  signatureStatus SignatureStatus @default(UNSIGNED)
+  viewingStatus   ViewingStatus   @default(NOT_VIEWED)
+  currentVersion  Int             @default(1)
+  amount          Decimal         @default(0) @db.Decimal(14, 2)
+  currency        String          @default("USD")
+
+  ownerId String?
+  owner   User?   @relation(fields: [ownerId], references: [id])
+
+  opportunityId String?
+  opportunity   Opportunity? @relation(fields: [opportunityId], references: [id])
+  companyId     String?
+  company       Company?     @relation(fields: [companyId], references: [id])
+  templateId    String?
+  template      Template?    @relation(fields: [templateId], references: [id])
+
+  contentJson  Json? // live editable proposal content
+  pdfUrl       String?
+  signedPdfUrl String?
+  digitalLink  String?
+
+  sentDate       DateTime?
+  expirationDate DateTime?
+  firstViewedAt  DateTime?
+  lastViewedAt   DateTime?
+  viewCount      Int       @default(0)
+  sourceMeetings String?
+  aiReviewed     Boolean   @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  contacts   ProposalContact[]
+  versions   ProposalVersion[]
+  lineItems  PricingLineItem[]
+  comments   Comment[]
+  signatures Signature[]
+  activities ActivityEvent[]
+  onboarding OnboardingSubmission?
+}
+
+model ProposalContact {
+  proposalId String
+  contactId  String
+  proposal   Proposal @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+  contact    Contact  @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@id([proposalId, contactId])
+}
+
+model ProposalVersion {
+  id            String         @id @default(cuid())
+  proposalId    String
+  proposal      Proposal       @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+  versionNumber Int
+  statusAtTime  ProposalStatus
+  snapshotJson  Json // frozen CRM + content data at send-time (immutable)
+  pdfUrl        String?
+  createdById   String?
+  createdBy     User?          @relation(fields: [createdById], references: [id])
+  createdAt     DateTime       @default(now())
+
+  @@unique([proposalId, versionNumber])
+}
+
+model PricingLineItem {
+  id           String       @id @default(cuid())
+  proposalId   String
+  proposal     Proposal     @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+  product      String // איפיון / פרויקט / דיסקברי, or free text
+  description  String?
+  quantity     Decimal      @default(1) @db.Decimal(12, 2)
+  unitPrice    Decimal      @default(0) @db.Decimal(14, 2) // editable per line (not hardcoded)
+  discountPct  Decimal      @default(0) @db.Decimal(5, 2)
+  vatPct       Decimal      @default(0) @db.Decimal(5, 2)
+  billingCycle BillingCycle @default(ONE_TIME)
+  currency     String       @default("USD")
+  isOptional   Boolean      @default(false)
+  sortOrder    Int          @default(0)
+}
+
+enum CommentStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  REJECTED
+}
+
+model Comment {
+  id           String        @id @default(cuid())
+  proposalId   String
+  proposal     Proposal      @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+  status       CommentStatus @default(OPEN)
+  sectionRef   String? // which block/section, null = general
+  body         String
+  fromCustomer Boolean       @default(true)
+  authorName   String?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+}
+
+model Signature {
+  id                String   @id @default(cuid())
+  proposalId        String
+  proposal          Proposal @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+  signerName        String
+  signerRole        String?
+  signerCompany     String?
+  signerEmail       String
+  signerPhone       String?
+  signingOrder      Int      @default(1)
+  termsAccepted     Boolean  @default(false)
+  signatureImageUrl String?
+  ipAddress         String? // captured server-side at submission
+  versionSigned     Int
+  signedAt          DateTime @default(now())
+}
+
+enum ActivityType {
+  CREATED
+  SUBMITTED_FOR_APPROVAL
+  APPROVED
+  RETURNED_FOR_CORRECTIONS
+  SENT
+  OPENED
+  COMMENTED
+  SIGNED
+  REJECTED
+  EXPIRED
+  DUPLICATED
+  NEW_VERSION
+}
+
+model ActivityEvent {
+  id         String       @id @default(cuid())
+  proposalId String
+  proposal   Proposal     @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+  type       ActivityType
+  detail     String?
+  actorName  String?
+  ipAddress  String?
+  createdAt  DateTime     @default(now())
+}
+
+model OnboardingSubmission {
+  id                  String   @id @default(cuid())
+  proposalId          String   @unique
+  proposal            Proposal @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+  legalName           String
+  registrationNo      String?
+  billingEmail        String
+  primaryAddress      String?
+  billingAddress      String?
+  website             String?
+  logoUrl             String?
+  projectContact      String?
+  technicalContact    String?
+  billingContact      String?
+  deliverablesContact String?
+  createdAt           DateTime @default(now())
+}
+
+enum Role {
+  REP
+  APPROVER
+  ADMIN
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String
+  role      Role     @default(REP)
+  createdAt DateTime @default(now())
+
+  proposals       Proposal[]
+  versionsCreated ProposalVersion[]
+}
