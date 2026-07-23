@@ -62,6 +62,15 @@ const NEXT_STATUS: Record<string, { status: string; approval?: string; activity:
 export async function transitionStatus(proposalId: string, action: keyof typeof NEXT_STATUS) {
   const t = NEXT_STATUS[action];
   if (!t) return;
+
+  // Approve / return-for-corrections are restricted to approvers/admins.
+  // Every transition requires an authenticated user; we also stamp the actor.
+  const { requireUser, requireRole } = await import("./auth");
+  const actor =
+    action === "approve" || action === "return"
+      ? await requireRole(["APPROVER", "ADMIN"])
+      : await requireUser();
+
   await prisma.proposal.update({
     where: { id: proposalId },
     data: {
@@ -71,7 +80,7 @@ export async function transitionStatus(proposalId: string, action: keyof typeof 
     },
   });
   await prisma.activityEvent.create({
-    data: { id: id("act"), proposalId, type: t.activity as never },
+    data: { id: id("act"), proposalId, type: t.activity as never, actorName: actor.name },
   });
   revalidatePath(`/proposals/${proposalId}`);
   revalidatePath("/proposals");

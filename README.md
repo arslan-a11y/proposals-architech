@@ -48,8 +48,26 @@ Known PDF limitation: `@react-pdf/renderer` has limited bidi reordering, so *mix
 
 Known limitations: signing is keyed by proposal id, not yet a **cryptographically random token** (add one before exposing publicly); multi-signer is recorded with a signing order but **order is not yet enforced** (any signer can sign); no auth/roles yet.
 
+### User Authentication — BUILT & verified (2026-07-22)
+
+Custom email/password auth, no third-party dependency:
+- **Session:** signed JWT (HS256 via `jose`) in an httpOnly cookie (`pms_session`, 7-day). Edge-safe token helpers in `src/lib/session.ts`; Node-side helpers (bcrypt, cookie read, role guards) in `src/lib/auth.ts`; login/logout server actions in `src/lib/auth-actions.ts`.
+- **Route protection:** `src/proxy.ts` (Next 16 renamed `middleware`→`proxy`) guards everything except `/login` and `/sign/*`, redirecting to `/login?next=…`. Verified: protected routes 307 without a session, 200 with a valid one.
+- **Roles enforced:** Approve / Return-for-corrections require `APPROVER` or `ADMIN` (`requireRole` in `transitionStatus`); every transition requires a logged-in user and stamps the actor on the activity event.
+- **Login page** `/login` (standalone, no sidebar) with inline error handling; **sidebar** shows the signed-in user + role + Sign out.
+- **Seeded accounts** (`npx tsx scripts/seed-users.ts`): idan_nevet@ / yarin@ / yarden@archi-tech.io (APPROVER), arslan@archi-tech.io (ADMIN). All share the **dev placeholder password `ChangeMe123!` — ROTATE before real use.**
+
+New env var required: **`SESSION_SECRET`** (set locally; must also be added in Vercel — see below).
+
+Still to harden on auth: signer links on `/sign/[id]` are still keyed by proposal id, not yet a random token (guessable); no self-serve password reset / user management UI yet; role checks cover the workflow actions but not yet every edit/delete path.
+
 **Still not built (remaining scope):**
-- AI writing assistant, tokenized/secured public links, multi-signer order enforcement, onboarding flow, authentication/roles enforcement.
+- AI writing assistant, tokenized/secured public signing links, multi-signer order enforcement, onboarding flow, proposal duplication, customer comments UI, full sending screen (email/OTP/revoke), QA + production hardening (incl. Supabase RLS).
+
+### ⚠ Deploy note — env vars required on Vercel
+The app now **requires a database and session secret at runtime**. Until these are set in Vercel → Settings → Environment Variables, the deployed site will redirect everything to a login that can't authenticate:
+- `DATABASE_URL` — the Supabase Transaction-pooler connection string (still not set on Vercel as of this writing).
+- `SESSION_SECRET` — copy the value from local `.env` (or generate a new 32+ byte hex secret).
 
 ## Database — Supabase (provisioned & seeded)
 

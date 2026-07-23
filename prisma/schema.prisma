@@ -320,11 +320,12 @@ enum Role {
 }
 
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  name      String
-  role      Role     @default(REP)
-  createdAt DateTime @default(now())
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  role         Role     @default(REP)
+  passwordHash String? // bcrypt hash; null until the user sets a password
+  createdAt    DateTime @default(now())
 
   proposals       Proposal[]
   versionsCreated ProposalVersion[]

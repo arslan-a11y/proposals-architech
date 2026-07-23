@@ -1,5 +1,7 @@
 import Link from "next/link";
-import { LayoutDashboard, FileText, LayoutTemplate, Users, PenLine } from "lucide-react";
+import { LayoutDashboard, FileText, LayoutTemplate, Users, PenLine, LogOut } from "lucide-react";
+import { getCurrentUser } from "@/lib/auth";
+import { logout } from "@/lib/auth-actions";
 
 const NAV = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -8,7 +10,10 @@ const NAV = [
   { href: "/crm", label: "CRM", icon: Users },
 ];
 
-export function Sidebar() {
+const ROLE_LABEL: Record<string, string> = { REP: "Sales Rep", APPROVER: "Approver", ADMIN: "Admin" };
+
+export async function Sidebar() {
+  const user = await getCurrentUser();
   return (
     <aside className="w-60 shrink-0 border-r bg-[var(--at-ink)] text-white flex flex-col">
       <div className="px-5 py-5 flex items-center gap-2.5 border-b border-white/10">
@@ -32,7 +37,28 @@ export function Sidebar() {
           </Link>
         ))}
       </nav>
-      <div className="px-5 py-4 border-t border-white/10 text-[11px] text-white/40">
+      {user && (
+        <div className="px-3 py-3 border-t border-white/10">
+          <div className="flex items-center gap-2.5 px-2 py-1.5">
+            <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-xs font-semibold shrink-0">
+              {user.name.slice(0, 2).toUpperCase()}
+            </div>
+            <div className="leading-tight min-w-0">
+              <div className="text-sm truncate">{user.name}</div>
+              <div className="text-[11px] text-white/50">{ROLE_LABEL[user.role] ?? user.role}</div>
+            </div>
+          </div>
+          <form action={logout}>
+            <button
+              type="submit"
+              className="mt-1 w-full flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-white/70 hover:bg-white/10 hover:text-white transition-colors"
+            >
+              <LogOut className="w-4 h-4" /> Sign out
+            </button>
+          </form>
+        </div>
+      )}
+      <div className="px-5 py-3 border-t border-white/10 text-[11px] text-white/40">
         v0.1 · Node.js build
       </div>
     </aside>
